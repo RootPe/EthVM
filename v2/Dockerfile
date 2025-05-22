@@ -1,44 +1,25 @@
-# Build stage
-FROM node:18.0.0-slim as builder
+FROM node:18.0.0-alpine
 
 # Install pnpm
 RUN npm install -g pnpm@8.10.5
 
+# install simple http server for serving static content
+RUN npm install -g http-server
+
+# make the 'app' folder the current working directory
 WORKDIR /app
 
-# Copy package files
-COPY package.json pnpm-lock.yaml ./
+# copy both 'package.json' and 'package-lock.json' (if available)
+COPY package*.json ./
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile
+# install project dependencies
+RUN pnpm install
 
-# Copy source code
+# copy project files and folders to the current working directory (i.e. 'app' folder)
 COPY . .
 
-# Build the application
-RUN pnpm build
-
-# Production stage
-FROM nginx:stable-alpine
-
-# Copy nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-# Copy built files from builder stage
-COPY --from=builder /app/dist /usr/share/nginx/html
-
-# Add non-root user
-RUN adduser -D -u 1001 appuser && \
-    chown -R appuser:appuser /usr/share/nginx/html && \
-    chmod -R 755 /usr/share/nginx/html && \
-    chown -R appuser:appuser /var/cache/nginx && \
-    chown -R appuser:appuser /var/log/nginx && \
-    chown -R appuser:appuser /etc/nginx/conf.d && \
-    touch /var/run/nginx.pid && \
-    chown -R appuser:appuser /var/run/nginx.pid
-
-USER appuser
+# build app for production with minification
+RUN pnpm run build
 
 EXPOSE 8080
-
-CMD ["nginx", "-g", "daemon off;"]
+CMD [ "http-server", "dist" ]
